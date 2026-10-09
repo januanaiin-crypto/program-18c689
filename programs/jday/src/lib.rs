@@ -35,6 +35,7 @@ mod c {
     pub const AGENTS: usize = 76;
     pub const LEVEL_SINCE: usize = 84;
     pub const JD_EPOCH: usize = 92; // +1 every time the mesh level is set to JUDGEMENT DAY
+    pub const REGISTRATIONS: usize = 100; // u32, +1 per register_agent (never reset)
 }
 mod p {
     pub const OWNER: usize = 8;
@@ -497,9 +498,11 @@ fn register_agent(a: &mut [AccountView], d: &[u8]) -> ProgramResult {
     let t = now()?;
     put(&mut prof, p::WINDOW_START, &t.to_le_bytes())?;
     put(&mut prof, p::ACK_EPOCH, &rd::<8>(&cfg, c::JD_EPOCH)?)?;
-    // nonce starts at clock<<20 so a spend signed for an earlier profile with the same id can never replay
-    // (would need 2^20 spends per second of the old profile's age)
-    put(&mut prof, p::NONCE, &((t as u64) << 20).to_le_bytes())?;
+    // every registration gets its own nonce range (counter<<40), so a spend signed for an earlier profile with the
+    // same id can never land on a new one, even within the same second
+    let reg = u32::from_le_bytes(rd(&cfg, c::REGISTRATIONS)?);
+    put(&mut cfg, c::REGISTRATIONS, &reg.checked_add(1).ok_or(err(Error::MathOverflow))?.to_le_bytes())?;
+    put(&mut prof, p::NONCE, &((reg as u64) << 40).to_le_bytes())?;
     let cfg_key = *account(a, 1)?.address();
     write_policy(&mut prof, policy, &[hot_key, prof_key, cfg_key])?;
     init_account(
