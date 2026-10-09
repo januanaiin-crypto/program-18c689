@@ -1,0 +1,23 @@
+[workspace]
+members = ["programs/*"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.89.0"
+
+[profile.release]
+overflow-checks = true
+opt-level = "z" # smallest program: network rent is paid per byte ("s" measured 14 KB larger, 2026-09-30)
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+[profile.release.build-override]
+opt-level = 3
+incremental = false
+codegen-units = 1
+
+# toolchain for the verifiable build (solana-verify picks the matching build image)
+[workspace.metadata.cli]
+solana = "4.1.2"
